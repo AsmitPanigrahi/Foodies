@@ -11,7 +11,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import RestaurantList from './pages/RestaurantList';
-import RestaurantDetail from './pages/RestaurantDetail';
+import RestaurantDetails from './pages/restaurant/RestaurantDetails';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import UserOrders from './pages/UserOrders';
@@ -49,7 +49,7 @@ const App = () => {
               <Route path="login" element={<Login />} />
               <Route path="register" element={<Register />} />
               <Route path="restaurants" element={<RestaurantList />} />
-              <Route path="restaurant/:id" element={<RestaurantDetail />} />
+              <Route path="restaurant/:id" element={<RestaurantDetails />} />
 
               {/* Protected Customer Routes */}
               <Route
