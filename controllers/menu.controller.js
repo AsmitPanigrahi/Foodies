@@ -4,14 +4,15 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
 exports.createMenuItem = catchAsync(async (req, res, next) => {
-    const restaurant = await Restaurant.findById(req.body.restaurant).populate('owner');
+    // Get restaurantId from route params instead of request body
+    const restaurantId = req.params.restaurantId;
+    const restaurant = await Restaurant.findById(restaurantId).populate('owner');
 
     if (!restaurant) {
         return next(new AppError('No restaurant found with that ID', 404));
     }
 
     // Check if user is the restaurant owner
-
     console.log('Debug Info:');
     console.log('Logged-in user ID:', req.user._id);
     console.log('Restaurant owner ID:', restaurant.owner._id);
@@ -24,12 +25,17 @@ exports.createMenuItem = catchAsync(async (req, res, next) => {
         ownerIdString: restaurant.owner._id.toString()
     });
 
-
     if (restaurant.owner._id.toString() !== req.user._id.toString()) {
         return next(new AppError('You can only add items to your own restaurant', 403));
     }
 
-    const menuItem = await MenuItem.create(req.body);
+    // Add restaurant ID to the menu item data
+    const menuItemData = {
+        ...req.body,
+        restaurant: restaurantId
+    };
+
+    const menuItem = await MenuItem.create(menuItemData);
 
     res.status(201).json({
         status: 'success',

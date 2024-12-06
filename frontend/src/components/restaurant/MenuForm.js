@@ -1,74 +1,61 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { menuAPI } from '../../api/menu.api';
 
-const MenuForm = ({ onSuccess, editItem = null }) => {
+const MenuForm = ({ onSubmit, onCancel, initialData = null, restaurantId, editingItem }) => {
   const [formData, setFormData] = useState({
-    name: editItem?.name || '',
-    description: editItem?.description || '',
-    price: editItem?.price || '',
-    category: editItem?.category || '',
-    image: editItem?.image || '',
-    isVegetarian: editItem?.isVegetarian || false,
-    isVegan: editItem?.isVegan || false,
-    isGlutenFree: editItem?.isGlutenFree || false,
-    spicyLevel: editItem?.spicyLevel || 'mild',
-    ingredients: editItem?.ingredients || [],
-    allergens: editItem?.allergens || [],
-    nutritionalInfo: editItem?.nutritionalInfo || {
+    name: initialData?.name || '',
+    description: initialData?.description || '',
+    price: initialData?.price || '',
+    category: initialData?.category || '',
+    image: initialData?.image || '',
+    isVegetarian: initialData?.isVegetarian || false,
+    isVegan: initialData?.isVegan || false,
+    isGlutenFree: initialData?.isGlutenFree || false,
+    spicyLevel: initialData?.spicyLevel || 0,
+    ingredients: initialData?.ingredients || [],
+    allergens: initialData?.allergens || [],
+    nutritionalInfo: initialData?.nutritionalInfo || {
       calories: '',
       protein: '',
       carbohydrates: '',
       fat: ''
     },
-    isAvailable: editItem?.isAvailable || true,
-    preparationTime: editItem?.preparationTime || '',
-    isPopular: editItem?.isPopular || false,
-    isSpecial: editItem?.isSpecial || false,
-    discount: editItem?.discount || {
-      percentage: 0,
-      isActive: false
-    },
-    customization: editItem?.customization || []
+    isAvailable: initialData?.isAvailable ?? true,
+    preparationTime: initialData?.preparationTime || 20,
+    isPopular: initialData?.isPopular || false,
+    isSpecial: initialData?.isSpecial || false,
+    discount: initialData?.discount || 0,
+    customization: initialData?.customization || []
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     try {
-      await onSuccess(formData);
-      
-      if (!editItem) {
-        setFormData({
-          name: '',
-          description: '',
-          price: '',
-          category: '',
-          image: '',
-          isVegetarian: false,
-          isVegan: false,
-          isGlutenFree: false,
-          spicyLevel: 'mild',
-          ingredients: [],
-          allergens: [],
-          nutritionalInfo: {
-            calories: '',
-            protein: '',
-            carbohydrates: '',
-            fat: ''
-          },
-          isAvailable: true,
-          preparationTime: '',
-          isPopular: false,
-          isSpecial: false,
-          discount: {
-            percentage: 0,
-            isActive: false
-          },
-          customization: []
-        });
+      const formDataWithRestaurant = {
+        ...formData,
+        restaurant: restaurantId // Ensure restaurant ID is included
+      };
+
+      if (editingItem) {
+        const response = await menuAPI.updateItem(restaurantId, editingItem._id, formDataWithRestaurant);
+        if (response.status === 'success') {
+          toast.success('Menu item updated successfully');
+          onSubmit(response.data);
+          resetForm();
+        }
+      } else {
+        const response = await menuAPI.createItem(restaurantId, formDataWithRestaurant);
+        if (response.status === 'success') {
+          toast.success('Menu item added successfully');
+          onSubmit(response.data);
+          resetForm();
+        }
       }
     } catch (error) {
-      console.error('Error saving menu item:', error);
-      toast.error('Failed to save menu item');
+      console.error('Error submitting menu item:', error);
+      toast.error(error.response?.data?.message || 'Failed to save menu item');
     }
   };
 
@@ -110,12 +97,40 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      category: '',
+      image: '',
+      isVegetarian: false,
+      isVegan: false,
+      isGlutenFree: false,
+      spicyLevel: 0,
+      ingredients: [],
+      allergens: [],
+      nutritionalInfo: {
+        calories: '',
+        protein: '',
+        carbohydrates: '',
+        fat: ''
+      },
+      isAvailable: true,
+      preparationTime: 20,
+      isPopular: false,
+      isSpecial: false,
+      discount: 0,
+      customization: []
+    });
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Basic Information */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Name</label>
+          <label className="block text-sm font-medium text-gray-700">Name *</label>
           <input
             type="text"
             name="name"
@@ -127,7 +142,7 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Price</label>
+          <label className="block text-sm font-medium text-gray-700">Price *</label>
           <input
             type="number"
             name="price"
@@ -141,15 +156,21 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Category</label>
-          <input
-            type="text"
+          <label className="block text-sm font-medium text-gray-700">Category *</label>
+          <select
             name="category"
             value={formData.category}
             onChange={handleChange}
             required
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-          />
+          >
+            <option value="">Select a category</option>
+            <option value="appetizers">Appetizers</option>
+            <option value="main course">Main Course</option>
+            <option value="desserts">Desserts</option>
+            <option value="beverages">Beverages</option>
+            <option value="sides">Sides</option>
+          </select>
         </div>
 
         <div>
@@ -176,7 +197,7 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Description</label>
+          <label className="block text-sm font-medium text-gray-700">Description *</label>
           <textarea
             name="description"
             value={formData.description}
@@ -227,17 +248,16 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
         {/* Spicy Level */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Spicy Level</label>
-          <select
+          <input
+            type="range"
             name="spicyLevel"
             value={formData.spicyLevel}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-          >
-            <option value="mild">Mild</option>
-            <option value="medium">Medium</option>
-            <option value="hot">Hot</option>
-            <option value="extra-hot">Extra Hot</option>
-          </select>
+            min="0"
+            max="5"
+            className="mt-1 block w-full"
+          />
+          <div className="text-xs text-gray-500 mt-1">Level: {formData.spicyLevel}</div>
         </div>
 
         {/* Ingredients and Allergens */}
@@ -389,7 +409,7 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
       <div className="mt-4 flex justify-end space-x-3">
         <button
           type="button"
-          onClick={() => onSuccess(null)}
+          onClick={onCancel}
           className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
           Cancel
@@ -398,7 +418,7 @@ const MenuForm = ({ onSuccess, editItem = null }) => {
           type="submit"
           className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
-          {editItem ? 'Update' : 'Add'} Item
+          {editingItem ? 'Update' : 'Add'} Item
         </button>
       </div>
     </form>

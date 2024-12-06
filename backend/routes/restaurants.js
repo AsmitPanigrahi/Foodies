@@ -2,13 +2,65 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const Restaurant = require('../models/Restaurant');
-const MenuItem = require('../models/MenuItem');
+const MenuItem = require('../models/Menu'); // Ensure this path is correct
+const mongoose = require('mongoose');
 
-// Debug middleware
+// Debug middleware for all restaurant routes
 router.use((req, res, next) => {
-  console.log('Restaurant Route:', req.method, req.url);
+  console.log('Restaurant Route Request:', {
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    params: req.params,
+    query: req.query,
+    auth: !!req.user
+  });
   next();
 });
+
+// Validate MongoDB ObjectId middleware
+const validateObjectId = (req, res, next) => {
+  const { restaurantId } = req.params;
+  if (restaurantId && !mongoose.Types.ObjectId.isValid(restaurantId)) {
+    console.log('Invalid restaurant ID format:', restaurantId);
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid restaurant ID format'
+    });
+  }
+  next();
+};
+
+// Validate restaurant ID middleware
+const validateRestaurantId = async (req, res, next) => {
+  const { restaurantId } = req.params;
+  
+  // Check if the ID is a valid MongoDB ObjectId
+  if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid restaurant ID format'
+    });
+  }
+
+  try {
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (!restaurant) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Restaurant not found'
+      });
+    }
+    req.restaurant = restaurant; // Attach restaurant to request
+    next();
+  } catch (error) {
+    console.error('Error validating restaurant:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
 
 // Get all restaurants
 router.get('/', authenticateToken, async (req, res) => {
@@ -53,19 +105,12 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 // Get restaurant by ID
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
   console.log('Getting restaurant by ID:', req.params.id);
   try {
-    const restaurant = await Restaurant.findById(req.params.id);
-    if (!restaurant) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Restaurant not found'
-      });
-    }
     res.json({
       status: 'success',
-      data: restaurant
+      data: req.restaurant
     });
   } catch (error) {
     console.error('Error getting restaurant:', error);
@@ -97,18 +142,34 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get menu items for a restaurant
-router.get('/:restaurantId/menu-items', authenticateToken, async (req, res) => {
-  console.log('Getting menu items for restaurant:', req.params.restaurantId);
+// Get restaurant dashboard data
+router.get('/dashboard', authenticateToken, async (req, res) => {
+  console.log('Getting restaurant dashboard for user:', req.user._id);
   try {
-    const menuItems = await MenuItem.find({ restaurant: req.params.restaurantId });
-    console.log('Found menu items:', menuItems);
+    const restaurant = await Restaurant.findOne({ owner: req.user._id });
+    if (!restaurant) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No restaurant found for this user'
+      });
+    }
+
     res.json({
       status: 'success',
-      data: menuItems
+      data: {
+        restaurant: {
+          _id: restaurant._id,
+          name: restaurant.name,
+          description: restaurant.description,
+          address: restaurant.address,
+          phone: restaurant.phone,
+          cuisine: restaurant.cuisine,
+          owner: restaurant.owner
+        }
+      }
     });
   } catch (error) {
-    console.error('Error getting menu items:', error);
+    console.error('Error getting restaurant dashboard:', error);
     res.status(500).json({
       status: 'error',
       message: error.message
@@ -116,23 +177,47 @@ router.get('/:restaurantId/menu-items', authenticateToken, async (req, res) => {
   }
 });
 
+// Get menu items for a restaurant
+router.get('/:restaurantId/menu-items', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
+  const { restaurantId } = req.params;
+  console.log('Getting menu items for restaurant:', restaurantId);
+  
+  try {
+    const menuItems = await MenuItem.find({ restaurant: restaurantId })
+      .select('-__v')
+      .lean();
+
+    console.log(`Found ${menuItems.length} menu items`);
+    
+    res.json({
+      status: 'success',
+      data: menuItems
+    });
+  } catch (error) {
+    console.error('Error fetching menu items:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error fetching menu items'
+    });
+  }
+});
+
 // Create menu item for a restaurant
-router.post('/:restaurantId/menu-items', authenticateToken, async (req, res) => {
+router.post('/:restaurantId/menu-items', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
   console.log('Creating menu item for restaurant:', req.params.restaurantId);
   try {
-    const newMenuItem = new MenuItem({
+    const menuItem = new MenuItem({
       ...req.body,
       restaurant: req.params.restaurantId
     });
-    await newMenuItem.save();
-    console.log('Created menu item:', newMenuItem);
+    await menuItem.save();
     res.status(201).json({
       status: 'success',
-      data: newMenuItem
+      data: menuItem
     });
   } catch (error) {
     console.error('Error creating menu item:', error);
-    res.status(400).json({
+    res.status(500).json({
       status: 'error',
       message: error.message
     });
@@ -140,32 +225,27 @@ router.post('/:restaurantId/menu-items', authenticateToken, async (req, res) => 
 });
 
 // Update menu item
-router.put('/:restaurantId/menu-items/:id', authenticateToken, async (req, res) => {
-  console.log('Updating menu item for restaurant:', req.params.restaurantId);
+router.put('/:restaurantId/menu-items/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
+  console.log('Updating menu item:', req.params.id);
   try {
-    const updatedItem = await MenuItem.findOneAndUpdate(
-      { 
-        _id: req.params.id,
-        restaurant: req.params.restaurantId
-      },
+    const menuItem = await MenuItem.findOneAndUpdate(
+      { _id: req.params.id, restaurant: req.params.restaurantId },
       req.body,
       { new: true }
     );
-
-    if (!updatedItem) {
+    if (!menuItem) {
       return res.status(404).json({
-        status: 'fail',
+        status: 'error',
         message: 'Menu item not found'
       });
     }
-
     res.json({
       status: 'success',
-      data: updatedItem
+      data: menuItem
     });
   } catch (error) {
     console.error('Error updating menu item:', error);
-    res.status(400).json({
+    res.status(500).json({
       status: 'error',
       message: error.message
     });
@@ -173,24 +253,22 @@ router.put('/:restaurantId/menu-items/:id', authenticateToken, async (req, res) 
 });
 
 // Delete menu item
-router.delete('/:restaurantId/menu-items/:id', authenticateToken, async (req, res) => {
-  console.log('Deleting menu item for restaurant:', req.params.restaurantId);
+router.delete('/:restaurantId/menu-items/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
+  console.log('Deleting menu item:', req.params.id);
   try {
-    const deletedItem = await MenuItem.findOneAndDelete({
+    const menuItem = await MenuItem.findOneAndDelete({
       _id: req.params.id,
       restaurant: req.params.restaurantId
     });
-
-    if (!deletedItem) {
+    if (!menuItem) {
       return res.status(404).json({
-        status: 'fail',
+        status: 'error',
         message: 'Menu item not found'
       });
     }
-
     res.json({
       status: 'success',
-      message: 'Menu item deleted successfully'
+      data: menuItem
     });
   } catch (error) {
     console.error('Error deleting menu item:', error);

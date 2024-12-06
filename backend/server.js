@@ -16,9 +16,22 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Debug middleware
+// Debug middleware - log all requests
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log('Incoming Request:', {
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    baseUrl: req.baseUrl,
+    originalUrl: req.originalUrl,
+    params: req.params,
+    query: req.query,
+    body: req.method === 'POST' ? req.body : undefined,
+    headers: {
+      authorization: req.headers.authorization ? 'Present' : 'Not Present',
+      'content-type': req.headers['content-type']
+    }
+  });
   next();
 });
 
