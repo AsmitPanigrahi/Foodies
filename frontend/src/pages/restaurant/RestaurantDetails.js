@@ -3,17 +3,18 @@ import { useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { getRestaurantById } from '../../api/restaurant.api';
 import customerMenuAPI from '../../api/customer.menu.api';
+import { useCart } from '../../context/CartContext';
 
 const RestaurantDetails = () => {
     const { id } = useParams();
     const [restaurant, setRestaurant] = useState(null);
     const [menuItems, setMenuItems] = useState([]);
-    const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(true);
     const [menuLoading, setMenuLoading] = useState(true);
     const [menuError, setMenuError] = useState(null);
     const [activeTab, setActiveTab] = useState('menu');
     const [reviews, setReviews] = useState([]);
+    const { cart, addToCart, removeFromCart, updateQuantity } = useCart();
 
     useEffect(() => {
         fetchRestaurantAndMenu();
@@ -88,41 +89,6 @@ const RestaurantDetails = () => {
         return 'Location not available';
     };
 
-    const addToCart = (item) => {
-        setCart(prevCart => {
-            const existingItem = prevCart.find(cartItem => cartItem._id === item._id);
-            if (existingItem) {
-                return prevCart.map(cartItem =>
-                    cartItem._id === item._id
-                        ? { ...cartItem, quantity: cartItem.quantity + 1 }
-                        : cartItem
-                );
-            }
-            return [...prevCart, { ...item, quantity: 1 }];
-        });
-        toast.success('Item added to cart');
-    };
-
-    const removeFromCart = (itemId) => {
-        setCart(prevCart => prevCart.filter(item => item._id !== itemId));
-        toast.success('Item removed from cart');
-    };
-
-    const updateQuantity = (itemId, newQuantity) => {
-        if (newQuantity < 1) return;
-        setCart(prevCart =>
-            prevCart.map(item =>
-                item._id === itemId
-                    ? { ...item, quantity: newQuantity }
-                    : item
-            )
-        );
-    };
-
-    const calculateTotal = () => {
-        return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-    };
-
     const placeOrder = async () => {
         if (cart.length === 0) {
             toast.error('Your cart is empty');
@@ -131,7 +97,7 @@ const RestaurantDetails = () => {
         
         // TODO: Implement order placement logic
         toast.success('Order placed successfully!');
-        setCart([]);
+        // setCart([]);
     };
 
     if (loading) {
@@ -229,14 +195,16 @@ const RestaurantDetails = () => {
                                                         </div>
                                                         <button
                                                             onClick={() => addToCart(item)}
-                                                            className={`px-4 py-2 rounded-lg transition-colors ${
+                                                            className={`p-3 rounded-full transition-all transform ${
                                                                 item.isAvailable === false 
                                                                 ? 'bg-gray-300 cursor-not-allowed'
-                                                                : 'bg-primary text-white hover:bg-primary-dark'
+                                                                : 'bg-primary text-white hover:bg-primary-dark hover:scale-110'
                                                             }`}
                                                             disabled={item.isAvailable === false}
+                                                            title="Add to Cart"
+                                                            aria-label="Add to Cart"
                                                         >
-                                                            Add to Cart
+                                                            🛒
                                                         </button>
                                                     </div>
                                                 ))}
@@ -288,20 +256,21 @@ const RestaurantDetails = () => {
                                         <div className="flex items-center space-x-2">
                                             <button
                                                 onClick={() => updateQuantity(item._id, item.quantity - 1)}
-                                                className="bg-gray-200 px-2 py-1 rounded"
+                                                className="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded"
                                             >
                                                 -
                                             </button>
                                             <span>{item.quantity}</span>
                                             <button
                                                 onClick={() => updateQuantity(item._id, item.quantity + 1)}
-                                                className="bg-gray-200 px-2 py-1 rounded"
+                                                className="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded"
                                             >
                                                 +
                                             </button>
                                             <button
                                                 onClick={() => removeFromCart(item._id)}
-                                                className="text-red-500 ml-2"
+                                                className="text-red-500 hover:text-red-600 ml-2"
+                                                title="Remove from cart"
                                             >
                                                 ✕
                                             </button>
@@ -312,11 +281,11 @@ const RestaurantDetails = () => {
                             <div className="border-t pt-4">
                                 <div className="flex justify-between mb-4">
                                     <span className="font-semibold">Total:</span>
-                                    <span className="font-semibold">₹{calculateTotal()}</span>
+                                    <span className="font-semibold">₹{cart.reduce((total, item) => total + (item.price * item.quantity), 0)}</span>
                                 </div>
                                 <button
                                     onClick={placeOrder}
-                                    className="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary-dark"
+                                    className="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition-colors"
                                 >
                                     Place Order
                                 </button>
