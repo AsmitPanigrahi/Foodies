@@ -29,27 +29,42 @@ const server = http.createServer(app);
 const io = socketIO(server, {
     cors: {
         origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-        methods: ['GET', 'POST']
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization']
     }
 });
 
-// Set security HTTP headers
-app.use(helmet());
+// Enable CORS for all routes
+app.use(cors({
+    origin: process.env.NODE_ENV === 'development' ? true : process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// Set security headers
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 // Development logging
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 }
 
-// Limit requests from same API
+// Rate limiting
 const limiter = rateLimit({
     max: 100,
-    windowMs: 60 * 60 * 1000,
+    windowMs: 60 * 60 * 1000, // 1 hour
     message: 'Too many requests from this IP, please try again in an hour!'
 });
 app.use('/api', limiter);
 
-// Body parser, reading data from body into req.body
+// Body parser
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
@@ -61,46 +76,30 @@ app.use(mongoSanitize());
 app.use(xss());
 
 // Prevent parameter pollution
-app.use(hpp({
-    whitelist: [
-        'price',
-        'ratingsAverage',
-        'ratingsQuantity',
-        'maxGroupSize',
-        'difficulty'
-    ]
-}));
+app.use(hpp());
 
+// Compression
 app.use(compression());
 
-// CORS
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true
-}));
-
-// Make io accessible to our route handlers
-app.use((req, res, next) => {
-    req.io = io;
-    next();
-});
-
 // Routes
-app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/restaurants', require('./routes/restaurant.routes'));
-app.use('/api/menu', require('./routes/menu.routes'));
-app.use('/api/orders', require('./routes/order.routes'));
-app.use('/api/payments', require('./routes/payment.routes'));
+const authRoutes = require('./routes/auth.routes');
+const restaurantRoutes = require('./routes/restaurant.routes');
+const menuRoutes = require('./routes/menu.routes');
+const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
-// Socket.IO connection handling
-require('./services/socket.service')(io);
+// Mount routes
+app.use('/api/auth', authRoutes);
+app.use('/api/restaurants', restaurantRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 
-// Handle undefined Routes
-app.use('*', (req, res, next) => {
+// Error handling
+app.all('*', (req, res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
-// Error handling middleware
 app.use(globalErrorHandler);
 
 // Connect to MongoDB
@@ -109,10 +108,40 @@ mongoose.connect(process.env.MONGODB_URI, {
     useUnifiedTopology: true
 })
 .then(() => console.log('Connected to MongoDB'))
-.catch((err) => console.error('MongoDB connection error:', err));
+.catch(err => console.error('MongoDB connection error:', err));
 
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+});
+
+// Handle socket connections
+io.on('connection', (socket) => {
+    console.log('A user connected');
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
+
+    // Handle order updates
+    socket.on('orderUpdate', (data) => {
+        io.emit(`order-${data.orderId}`, data);
+    });
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', err => {
+    console.error('UNHANDLED REJECTION! Shutting down...');
+    console.error(err.name, err.message);
+    server.close(() => {
+        process.exit(1);
+    });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', err => {
+    console.error('UNCAUGHT EXCEPTION! Shutting down...');
+    console.error(err.name, err.message);
+    process.exit(1);
 });

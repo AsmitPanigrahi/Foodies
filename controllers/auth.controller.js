@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
+const bcrypt = require('bcryptjs'); // Import bcrypt
 
 const signToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -30,32 +31,63 @@ const createSendToken = (user, statusCode, res) => {
 };
 
 exports.signup = catchAsync(async (req, res, next) => {
-    const newUser = await User.create({
-        name: req.body.name,
-        email: req.body.email,
-        password: req.body.password,
-        phoneNumber: req.body.phoneNumber,
-        role: req.body.role || 'user',
-        address: req.body.address
-    });
+    try {
+        // 1) Check if password meets minimum length requirement
+        if (!req.body.password || req.body.password.length < 8) {
+            return next(new AppError('Password must be at least 8 characters long', 400));
+        }
 
-    createSendToken(newUser, 201, res);
+        // 2) Hash the password before creating user
+        const hashedPassword = await bcrypt.hash(req.body.password, 12);
+
+        // 3) Create new user with hashed password
+        const newUser = await User.create({
+            name: req.body.name,
+            email: req.body.email,
+            password: hashedPassword,
+            phoneNumber: req.body.phoneNumber,
+            role: req.body.role || 'user',
+            address: req.body.address
+        });
+
+        // 4) Generate JWT and send response
+        createSendToken(newUser, 201, res);
+    } catch (error) {
+        console.error('Error in signup:', error);
+        if (error.code === 11000) {
+            return next(new AppError('Email already exists', 400));
+        }
+        return next(new AppError('Error creating user: ' + error.message, 400));
+    }
 });
 
 exports.login = catchAsync(async (req, res, next) => {
-    const { email, password } = req.body;
+    try {
+        const { email, password } = req.body;
 
-    if (!email || !password) {
-        return next(new AppError('Please provide email and password!', 400));
+        // 1) Check if email and password exist
+        if (!email || !password) {
+            return next(new AppError('Please provide email and password!', 400));
+        }
+
+        // 2) Check if user exists
+        const user = await User.findOne({ email }).select('+password');
+        if (!user) {
+            return next(new AppError('Incorrect email or password', 401));
+        }
+
+        // 3) Hash the provided password and compare with stored hash
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return next(new AppError('Incorrect email or password', 401));
+        }
+
+        // 4) If everything ok, send token to client
+        createSendToken(user, 200, res);
+    } catch (error) {
+        console.error('Login error:', error);
+        return next(new AppError('Error during login: ' + error.message, 400));
     }
-
-    const user = await User.findOne({ email }).select('+password');
-
-    if (!user || !(await user.correctPassword(password, user.password))) {
-        return next(new AppError('Incorrect email or password', 401));
-    }
-
-    createSendToken(user, 200, res);
 });
 
 exports.logout = (req, res) => {
@@ -68,10 +100,8 @@ exports.logout = (req, res) => {
 
 exports.protect = catchAsync(async (req, res, next) => {
     let token;
-    if (
-        req.headers.authorization &&
-        req.headers.authorization.startsWith('Bearer')
-    ) {
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
     } else if (req.cookies.jwt) {
         token = req.cookies.jwt;
@@ -81,19 +111,19 @@ exports.protect = catchAsync(async (req, res, next) => {
         return next(new AppError('You are not logged in! Please log in to get access.', 401));
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const currentUser = await User.findById(decoded.id);
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
 
-    if (!currentUser) {
-        return next(new AppError('The user belonging to this token no longer exists.', 401));
+        if (!user) {
+            return next(new AppError('The user belonging to this token no longer exists.', 401));
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+        return next(new AppError('Invalid token. Please log in again.', 401));
     }
-
-    if (currentUser.changedPasswordAfter(decoded.iat)) {
-        return next(new AppError('User recently changed password! Please log in again.', 401));
-    }
-
-    req.user = currentUser;
-    next();
 });
 
 exports.restrictTo = (...roles) => {

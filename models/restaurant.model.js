@@ -38,7 +38,10 @@ const restaurantSchema = new mongoose.Schema({
             required: [true, 'A restaurant must have coordinates']
         }
     },
-    images: [String],
+    image: {
+        type: String,
+        default: 'default-restaurant.jpg'
+    },
     rating: {
         type: Number,
         default: 4.0,
@@ -52,44 +55,7 @@ const restaurantSchema = new mongoose.Schema({
     priceRange: {
         type: String,
         enum: ['$', '$$', '$$$', '$$$$'],
-        required: [true, 'A restaurant must have a price range']
-    },
-    openingHours: {
-        monday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        },
-        tuesday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        },
-        wednesday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        },
-        thursday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        },
-        friday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        },
-        saturday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        },
-        sunday: {
-            open: String,
-            close: String,
-            closed: Boolean
-        }
+        default: '$$'
     },
     contactNumber: {
         type: String,
@@ -98,59 +64,54 @@ const restaurantSchema = new mongoose.Schema({
     email: {
         type: String,
         required: [true, 'A restaurant must have an email'],
-        lowercase: true
+        lowercase: true,
+        validate: {
+            validator: function(v) {
+                return /\S+@\S+\.\S+/.test(v);
+            },
+            message: props => `${props.value} is not a valid email!`
+        }
+    },
+    openingHours: {
+        type: String,
+        required: [true, 'A restaurant must have opening hours']
+    },
+    preparationTime: {
+        type: Number,
+        required: [true, 'A restaurant must have an average preparation time'],
+        min: [5, 'Preparation time must be at least 5 minutes']
+    },
+    deliveryRadius: {
+        type: Number,
+        required: [true, 'A restaurant must specify its delivery radius'],
+        min: [0, 'Delivery radius cannot be negative']
+    },
+    minimumOrder: {
+        type: Number,
+        required: [true, 'A restaurant must specify its minimum order amount'],
+        min: [0, 'Minimum order cannot be negative']
     },
     isActive: {
         type: Boolean,
         default: true
     },
-    preparationTime: {
-        type: Number,
-        required: [true, 'Please provide average preparation time in minutes']
-    },
-    deliveryRadius: {
-        type: Number,
-        required: [true, 'Please provide delivery radius in kilometers']
-    },
-    minimumOrder: {
-        type: Number,
-        required: [true, 'Please provide minimum order amount']
-    },
-    features: {
-        hasDelivery: {
-            type: Boolean,
-            default: true
-        },
-        hasTableBooking: {
-            type: Boolean,
-            default: false
-        },
-        hasTakeaway: {
-            type: Boolean,
-            default: true
-        }
+    createdAt: {
+        type: Date,
+        default: Date.now
     }
 }, {
-    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
 
-// Indexes
+// Create indexes
 restaurantSchema.index({ location: '2dsphere' });
 restaurantSchema.index({ name: 1 });
 restaurantSchema.index({ cuisine: 1 });
 
-// Virtual populate for menu items
+// Virtual populate menu items
 restaurantSchema.virtual('menuItems', {
     ref: 'MenuItem',
-    foreignField: 'restaurant',
-    localField: '_id'
-});
-
-// Virtual populate for reviews
-restaurantSchema.virtual('reviews', {
-    ref: 'Review',
     foreignField: 'restaurant',
     localField: '_id'
 });
