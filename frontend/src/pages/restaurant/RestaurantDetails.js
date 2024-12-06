@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { getRestaurantById } from '../../api/restaurant.api';
-import menuAPI from '../../api/menu.api';
+import customerMenuAPI from '../../api/customer.menu.api';
 
 const RestaurantDetails = () => {
     const { id } = useParams();
@@ -10,6 +10,8 @@ const RestaurantDetails = () => {
     const [menuItems, setMenuItems] = useState([]);
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [menuLoading, setMenuLoading] = useState(true);
+    const [menuError, setMenuError] = useState(null);
     const [activeTab, setActiveTab] = useState('menu');
     const [reviews, setReviews] = useState([]);
 
@@ -21,18 +23,43 @@ const RestaurantDetails = () => {
     const fetchRestaurantAndMenu = async () => {
         try {
             setLoading(true);
-            const [restaurantRes, menuRes] = await Promise.all([
-                getRestaurantById(id),
-                menuAPI.getItems(id)
-            ]);
+            setMenuLoading(true);
+            setMenuError(null);
+            console.log('Fetching data for restaurant ID:', id);
             
+            // First fetch restaurant details
+            const restaurantRes = await getRestaurantById(id);
+            console.log('Restaurant response:', restaurantRes);
             setRestaurant(restaurantRes.data.restaurant);
-            setMenuItems(menuRes.menuItems || []);
+            
+            // Then fetch menu items using customer API
+            try {
+                console.log('Fetching menu items for restaurant:', id);
+                const menuRes = await customerMenuAPI.getRestaurantMenu(id);
+                console.log('Menu response:', menuRes);
+                
+                // Check if menuRes.data is an array (backward compatibility)
+                const menuItems = Array.isArray(menuRes.data) 
+                    ? menuRes.data 
+                    : (menuRes.data?.menuItems || []);
+                
+                if (menuItems.length > 0) {
+                    setMenuItems(menuItems);
+                } else {
+                    setMenuItems([]);
+                    setMenuError('No menu items available');
+                }
+            } catch (menuError) {
+                console.error('Error fetching menu items:', menuError);
+                setMenuError('Failed to load menu items. Please try again later.');
+                toast.error('Failed to load menu items');
+            }
         } catch (error) {
             console.error('Error fetching restaurant details:', error);
             toast.error('Failed to load restaurant details');
         } finally {
             setLoading(false);
+            setMenuLoading(false);
         }
     };
 
@@ -153,35 +180,73 @@ const RestaurantDetails = () => {
                 <div className="md:col-span-2">
                     {activeTab === 'menu' && (
                         <div className="space-y-6">
-                            {/* Menu Categories */}
-                            <div className="grid gap-6">
-                                {menuItems.length > 0 ? menuItems.map((item) => (
-                                    <div key={item._id} className="bg-white rounded-lg shadow p-4 flex justify-between items-center">
-                                        <div className="flex gap-4">
-                                            {item.image && (
-                                                <img 
-                                                    src={item.image} 
-                                                    alt={item.name}
-                                                    className="w-24 h-24 object-cover rounded-lg"
-                                                />
-                                            )}
-                                            <div>
-                                                <h3 className="font-semibold text-lg">{item.name}</h3>
-                                                <p className="text-gray-600 text-sm">{item.description}</p>
-                                                <p className="text-primary font-semibold mt-2">₹{item.price}</p>
+                            {menuLoading ? (
+                                <div className="flex justify-center items-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-900"></div>
+                                </div>
+                            ) : menuError ? (
+                                <div className="text-center py-8 text-red-500">
+                                    {menuError}
+                                    <button 
+                                        onClick={fetchRestaurantAndMenu}
+                                        className="block mx-auto mt-4 text-primary hover:text-primary-dark"
+                                    >
+                                        Try Again
+                                    </button>
+                                </div>
+                            ) : menuItems.length > 0 ? (
+                                <div className="grid gap-6">
+                                    {/* Group items by category if available */}
+                                    {Object.entries(menuItems.reduce((categories, item) => {
+                                        const category = item.category || 'Other';
+                                        if (!categories[category]) {
+                                            categories[category] = [];
+                                        }
+                                        categories[category].push(item);
+                                        return categories;
+                                    }, {})).map(([category, items]) => (
+                                        <div key={category}>
+                                            <h2 className="text-xl font-semibold mb-4">{category}</h2>
+                                            <div className="grid gap-4">
+                                                {items.map((item) => (
+                                                    <div key={item._id} className="bg-white rounded-lg shadow p-4 flex justify-between items-center">
+                                                        <div className="flex gap-4">
+                                                            {item.image && (
+                                                                <img 
+                                                                    src={item.image} 
+                                                                    alt={item.name}
+                                                                    className="w-24 h-24 object-cover rounded-lg"
+                                                                />
+                                                            )}
+                                                            <div>
+                                                                <h3 className="font-semibold text-lg">{item.name}</h3>
+                                                                <p className="text-gray-600 text-sm">{item.description}</p>
+                                                                <p className="text-primary font-semibold mt-2">₹{item.price}</p>
+                                                                {item.isAvailable === false && (
+                                                                    <p className="text-red-500 text-sm mt-1">Currently unavailable</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => addToCart(item)}
+                                                            className={`px-4 py-2 rounded-lg transition-colors ${
+                                                                item.isAvailable === false 
+                                                                ? 'bg-gray-300 cursor-not-allowed'
+                                                                : 'bg-primary text-white hover:bg-primary-dark'
+                                                            }`}
+                                                            disabled={item.isAvailable === false}
+                                                        >
+                                                            Add to Cart
+                                                        </button>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => addToCart(item)}
-                                            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors"
-                                        >
-                                            Add to Cart
-                                        </button>
-                                    </div>
-                                )) : (
-                                    <p className="text-center text-gray-600">No menu items available</p>
-                                )}
-                            </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-center text-gray-600 py-8">No menu items available</p>
+                            )}
                         </div>
                     )}
 

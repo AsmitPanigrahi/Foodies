@@ -178,32 +178,35 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 });
 
 // Get menu items for a restaurant
-router.get('/:restaurantId/menu-items', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
-  const { restaurantId } = req.params;
-  console.log('Getting menu items for restaurant:', restaurantId);
-  
+router.get('/:restaurantId/menu', validateObjectId, validateRestaurantId, async (req, res) => {
+  console.log('Getting menu items for restaurant:', req.params.restaurantId);
   try {
-    const menuItems = await MenuItem.find({ restaurant: restaurantId })
-      .select('-__v')
-      .lean();
-
-    console.log(`Found ${menuItems.length} menu items`);
+    const menuItems = await MenuItem.find({ restaurant: req.params.restaurantId });
+    console.log('Found menu items:', menuItems);
     
+    if (!menuItems) {
+      console.log('No menu items found');
+      return res.json({
+        status: 'success',
+        data: []
+      });
+    }
+
     res.json({
       status: 'success',
       data: menuItems
     });
   } catch (error) {
-    console.error('Error fetching menu items:', error);
+    console.error('Error getting menu items:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error fetching menu items'
+      message: error.message
     });
   }
 });
 
-// Create menu item for a restaurant
-router.post('/:restaurantId/menu-items', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
+// Protected menu routes for restaurant owners
+router.post('/:restaurantId/menu', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
   console.log('Creating menu item for restaurant:', req.params.restaurantId);
   try {
     const menuItem = new MenuItem({
@@ -225,7 +228,7 @@ router.post('/:restaurantId/menu-items', authenticateToken, validateObjectId, va
 });
 
 // Update menu item
-router.put('/:restaurantId/menu-items/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
+router.put('/:restaurantId/menu/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
   console.log('Updating menu item:', req.params.id);
   try {
     const menuItem = await MenuItem.findOneAndUpdate(
@@ -253,7 +256,7 @@ router.put('/:restaurantId/menu-items/:id', authenticateToken, validateObjectId,
 });
 
 // Delete menu item
-router.delete('/:restaurantId/menu-items/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
+router.delete('/:restaurantId/menu/:id', authenticateToken, validateObjectId, validateRestaurantId, async (req, res) => {
   console.log('Deleting menu item:', req.params.id);
   try {
     const menuItem = await MenuItem.findOneAndDelete({

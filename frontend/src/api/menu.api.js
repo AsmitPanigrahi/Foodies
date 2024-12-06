@@ -4,15 +4,17 @@ export const menuAPI = {
   // Get all menu items for a restaurant
   getItems: async (restaurantId) => {
     try {
-      console.log('Making API request to:', `/restaurants/${restaurantId}/menu`);
-      const response = await api.get(`/restaurants/${restaurantId}/menu`);
-      console.log('API Response:', response);
+      const endpoint = `/restaurants/${restaurantId}/menu`;
+      console.log('Making API request to:', endpoint);
+      const response = await api.get(endpoint);
+      console.log('Menu API Response:', response);
       return response.data;
     } catch (error) {
       console.error('Error getting menu items:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
+        endpoint: `/restaurants/${restaurantId}/menu`,
         config: error.config
       });
       throw error;
@@ -22,10 +24,19 @@ export const menuAPI = {
   // Create a new menu item
   createItem: async (restaurantId, menuItemData) => {
     try {
-      const response = await api.post(`/restaurants/${restaurantId}/menu`, menuItemData);
+      const endpoint = `/restaurants/${restaurantId}/menu`;
+      console.log('Making API request to:', endpoint);
+      const response = await api.post(endpoint, menuItemData);
+      console.log('Menu API Response:', response);
       return response.data;
     } catch (error) {
-      console.error('Error creating menu item:', error);
+      console.error('Error creating menu item:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        endpoint: `/restaurants/${restaurantId}/menu`,
+        config: error.config
+      });
       throw error;
     }
   },
@@ -33,10 +44,19 @@ export const menuAPI = {
   // Update a menu item
   updateItem: async (restaurantId, itemId, menuItemData) => {
     try {
-      const response = await api.put(`/restaurants/${restaurantId}/menu/${itemId}`, menuItemData);
+      const endpoint = `/restaurants/${restaurantId}/menu/${itemId}`;
+      console.log('Making API request to:', endpoint);
+      const response = await api.put(endpoint, menuItemData);
+      console.log('Menu API Response:', response);
       return response.data;
     } catch (error) {
-      console.error('Error updating menu item:', error);
+      console.error('Error updating menu item:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        endpoint: `/restaurants/${restaurantId}/menu/${itemId}`,
+        config: error.config
+      });
       throw error;
     }
   },
@@ -44,10 +64,19 @@ export const menuAPI = {
   // Delete a menu item
   deleteItem: async (restaurantId, itemId) => {
     try {
-      const response = await api.delete(`/restaurants/${restaurantId}/menu/${itemId}`);
+      const endpoint = `/restaurants/${restaurantId}/menu/${itemId}`;
+      console.log('Making API request to:', endpoint);
+      const response = await api.delete(endpoint);
+      console.log('Menu API Response:', response);
       return response.data;
     } catch (error) {
-      console.error('Error deleting menu item:', error);
+      console.error('Error deleting menu item:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        endpoint: `/restaurants/${restaurantId}/menu/${itemId}`,
+        config: error.config
+      });
       throw error;
     }
   }
