@@ -79,6 +79,7 @@ export const orderAPI = {
   getById: (id) => api.get(`/orders/${id}`),
   updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
   cancel: (id) => api.post(`/orders/${id}/cancel`),
+  getRestaurantOrders: () => api.get('/orders/restaurant')
 };
 
 // Payment API

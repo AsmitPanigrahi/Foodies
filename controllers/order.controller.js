@@ -126,38 +126,72 @@ exports.getUserOrders = catchAsync(async (req, res, next) => {
 });
 
 exports.getRestaurantOrders = catchAsync(async (req, res, next) => {
-    console.log('1. Looking for restaurant with owner ID:', req.user._id);
-    
-    // First find restaurants where the logged-in user is the owner
-    const restaurants = await Restaurant.find({}).populate('owner');
-    const userRestaurants = restaurants.filter(restaurant => 
-        restaurant.owner._id.toString() === req.user._id.toString()
-    );
-    
-    console.log('2. Found user restaurants:', userRestaurants);
-    
-    if (userRestaurants.length === 0) {
-        return next(new AppError('No restaurants found for this user', 404));
+    try {
+        // Log user information
+        console.log('Debug - User Info:', {
+            id: req.user?._id,
+            role: req.user?.role,
+            exists: !!req.user
+        });
+
+        // Verify user exists and has required role
+        if (!req.user) {
+            return next(new AppError('User not found', 401));
+        }
+
+        if (!['restaurant-owner', 'admin'].includes(req.user.role)) {
+            return next(new AppError('You do not have permission to access this resource', 403));
+        }
+
+        // Find the restaurant
+        const restaurant = await Restaurant.findOne({ owner: req.user._id });
+        console.log('Debug - Restaurant Query:', {
+            ownerId: req.user._id,
+            found: !!restaurant,
+            restaurantId: restaurant?._id
+        });
+        
+        if (!restaurant) {
+            return next(new AppError('No restaurant found for this user', 404));
+        }
+
+        // Find orders
+        const orders = await Order.find({ restaurant: restaurant._id })
+            .sort('-createdAt')
+            .populate({
+                path: 'user',
+                select: 'name email phoneNumber'
+            })
+            .populate({
+                path: 'items.menuItem',
+                select: 'name price image'
+            })
+            .populate({
+                path: 'restaurant',
+                select: 'name address contactNumber'
+            });
+
+        console.log('Debug - Orders Query:', {
+            restaurantId: restaurant._id,
+            orderCount: orders?.length,
+            orderIds: orders?.map(o => o._id)
+        });
+
+        res.status(200).json({
+            status: 'success',
+            results: orders.length,
+            data: { orders }
+        });
+    } catch (error) {
+        console.error('Error in getRestaurantOrders:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            user: req.user?._id,
+            role: req.user?.role
+        });
+        return next(new AppError(`Error fetching restaurant orders: ${error.message}`, 500));
     }
-
-    // Get all restaurant IDs owned by the user
-    const restaurantIds = userRestaurants.map(r => r._id);
-    console.log('3. Restaurant IDs:', restaurantIds);
-
-    // Find all orders for these restaurants
-    const orders = await Order.find({ restaurant: { $in: restaurantIds } })
-        .sort('-createdAt')
-        .populate('user')
-        .populate('items.menuItem')
-        .populate('restaurant');
-    
-    console.log('4. Found orders:', orders);
-
-    res.status(200).json({
-        status: 'success',
-        results: orders.length,
-        data: { orders }
-    });
 });
 
 exports.updateOrderStatus = catchAsync(async (req, res, next) => {

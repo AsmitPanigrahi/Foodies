@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { paymentAPI } from '../services/api';
+import { paymentAPI } from '../utils/api';
 import toast from 'react-hot-toast';
 
 const PaymentContext = createContext();
@@ -11,10 +11,11 @@ export const PaymentProvider = ({ children }) => {
   const createPaymentIntent = async (amount) => {
     try {
       setLoading(true);
-      const response = await paymentAPI.createPaymentIntent(amount);
+      const response = await paymentAPI.createPaymentIntent({ amount });
       setPaymentIntent(response.data);
       return response.data;
     } catch (error) {
+      console.error('Payment error:', error);
       toast.error('Failed to initialize payment');
       return null;
     } finally {
@@ -29,6 +30,7 @@ export const PaymentProvider = ({ children }) => {
       toast.success('Payment successful!');
       return response.data;
     } catch (error) {
+      console.error('Payment error:', error);
       toast.error('Payment failed. Please try again.');
       return null;
     } finally {

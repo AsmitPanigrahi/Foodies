@@ -86,14 +86,16 @@ export const menuAPI = {
 
 export const orderAPI = {
   create: (data) => api.post('/orders', data),
-  getUserOrders: () => api.get('/orders/user'),
-  getRestaurantOrders: () => api.get('/orders/restaurant'),
-  updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
+  getAll: (params) => api.get('/orders', { params }),
+  getById: (id) => api.get(`/orders/${id}`),
+  updateStatus: (id, status) => api.patch(`/orders/${id}`, { status }),
+  cancel: (id) => api.post(`/orders/${id}/cancel`),
+  getRestaurantOrders: () => api.get('/orders/restaurant/orders')
 };
 
 export const paymentAPI = {
-  createPaymentIntent: (data) => api.post('/payments/create-intent', data),
-  confirmPayment: (paymentIntentId) => api.post('/payments/confirm', { paymentIntentId }),
+  createPaymentIntent: (data) => api.post('/payments/create-payment-intent', data),
+  confirmPayment: (paymentIntentId) => api.post('/payments/confirm-payment', { paymentIntentId })
 };
 
 export default api;

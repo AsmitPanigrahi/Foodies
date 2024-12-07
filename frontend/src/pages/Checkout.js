@@ -6,6 +6,16 @@ import PaymentForm from '../components/payment/PaymentForm';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { toast } from 'react-hot-toast';
+import { PaymentProvider } from '../context/PaymentContext';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+
+// Initialize Stripe with the publishable key
+const STRIPE_PUBLISHABLE_KEY = 'pk_test_51QSD8jRp5AnEBBv1N7jgC1AjA5CT48u4aAFw8Dtb1QA2cD2xciyOTgxXUFQg8ntIHlWxn6IQeBpSUGZmP87GOOYC00a3SciAc6';
+const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+
+// For debugging
+console.log('Stripe Key:', STRIPE_PUBLISHABLE_KEY);
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -153,34 +163,11 @@ const Checkout = () => {
             </form>
           </div>
         ) : (
-          <>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Payment Details</h2>
+          <Elements stripe={stripePromise}>
+            <PaymentProvider>
               <PaymentForm onSuccess={handlePaymentSuccess} />
-            </div>
-            <div>
-              <div className="bg-gray-50 rounded-lg p-6 sticky top-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Order Summary</h3>
-                <div className="space-y-4">
-                  {cart.map((item) => (
-                    <div key={item._id} className="flex justify-between">
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
-                      </div>
-                      <p className="font-medium">${(item.price * item.quantity).toFixed(2)}</p>
-                    </div>
-                  ))}
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between font-bold">
-                      <p>Total</p>
-                      <p>${getTotal().toFixed(2)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
+            </PaymentProvider>
+          </Elements>
         )}
       </div>
     </div>

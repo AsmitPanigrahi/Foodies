@@ -24,6 +24,14 @@ const handleJWTExpiredError = () =>
     new AppError('Your token has expired! Please log in again.', 401);
 
 const sendErrorDev = (err, req, res) => {
+    console.log('Development Error:', {
+        statusCode: err.statusCode,
+        status: err.status,
+        message: err.message,
+        stack: err.stack,
+        error: err
+    });
+    
     return res.status(err.statusCode).json({
         status: err.status,
         error: err,
@@ -33,6 +41,15 @@ const sendErrorDev = (err, req, res) => {
 };
 
 const sendErrorProd = (err, req, res) => {
+    console.log('Production Error:', {
+        isOperational: err.isOperational,
+        statusCode: err.statusCode,
+        status: err.status,
+        message: err.message,
+        name: err.name,
+        code: err.code
+    });
+
     // Operational, trusted error: send message to client
     if (err.isOperational) {
         return res.status(err.statusCode).json({
@@ -40,8 +57,14 @@ const sendErrorProd = (err, req, res) => {
             message: err.message
         });
     }
+    
     // Programming or other unknown error: don't leak error details
-    console.error('ERROR 💥', err);
+    console.error('ERROR ', {
+        error: err,
+        stack: err.stack,
+        message: err.message
+    });
+    
     return res.status(500).json({
         status: 'error',
         message: 'Something went very wrong!'
@@ -49,14 +72,24 @@ const sendErrorProd = (err, req, res) => {
 };
 
 module.exports = (err, req, res, next) => {
+    console.log('Initial Error:', {
+        url: req.originalUrl,
+        method: req.method,
+        errorName: err.name,
+        errorMessage: err.message,
+        stack: err.stack
+    });
+
     err.statusCode = err.statusCode || 500;
     err.status = err.status || 'error';
 
     if (process.env.NODE_ENV === 'development') {
         sendErrorDev(err, req, res);
-    } else if (process.env.NODE_ENV === 'production') {
+    } else {
         let error = { ...err };
         error.message = err.message;
+        error.name = err.name;
+        error.code = err.code;
 
         if (error.name === 'CastError') error = handleCastErrorDB(error);
         if (error.code === 11000) error = handleDuplicateFieldsDB(error);

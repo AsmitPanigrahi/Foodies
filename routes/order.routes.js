@@ -7,24 +7,23 @@ const router = express.Router();
 // Protect all routes after this middleware
 router.use(authController.protect);
 
-router
-    .route('/')
+// Place specific routes before parameterized routes
+router.get('/restaurant/orders',
+    authController.restrictTo('restaurant-owner', 'admin'),
+    orderController.getRestaurantOrders
+);
+
+router.get('/user/orders', orderController.getUserOrders);
+
+router.route('/')
     .post(orderController.createOrder);
 
-router
-    .route('/:id')
+router.route('/:id')
     .get(orderController.getOrder)
     .patch(
         authController.restrictTo('restaurant-owner', 'admin'),
         orderController.updateOrderStatus
     );
-
-router.get('/user/orders', orderController.getUserOrders);
-router.get(
-    '/restaurant/orders',
-    authController.restrictTo('restaurant-owner', 'admin'),
-    orderController.getRestaurantOrders
-);
 
 router.post('/:id/cancel', orderController.cancelOrder);
 

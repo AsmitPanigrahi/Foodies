@@ -2,156 +2,94 @@ import React, { useState } from 'react';
 import { usePayment } from '../../context/PaymentContext';
 import { useCart } from '../../context/CartContext';
 import Button from '../ui/Button';
-import Input from '../ui/Input';
-import useForm from '../../hooks/useForm';
+import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 const PaymentForm = ({ onSuccess }) => {
-  const { createPaymentIntent, confirmPayment, loading } = usePayment();
-  const { total, clearCart } = useCart();
+  const { createPaymentIntent, loading: contextLoading } = usePayment();
+  const { getTotal, clearCart } = useCart();
   const [processing, setProcessing] = useState(false);
-
-  const { values, errors, handleChange, handleBlur, validateForm } = useForm(
-    {
-      cardNumber: '',
-      expiryDate: '',
-      cvv: '',
-      name: '',
-    },
-    {
-      cardNumber: [
-        { type: 'required' },
-        { type: 'length', min: 16, max: 16 },
-        { type: 'pattern', pattern: /^\d+$/, message: 'Must contain only numbers' }
-      ],
-      expiryDate: [
-        { type: 'required' },
-        { type: 'pattern', pattern: /^\d{2}\/\d{2}$/, message: 'Format: MM/YY' }
-      ],
-      cvv: [
-        { type: 'required' },
-        { type: 'length', min: 3, max: 4 },
-        { type: 'pattern', pattern: /^\d+$/, message: 'Must contain only numbers' }
-      ],
-      name: [
-        { type: 'required' },
-        { type: 'length', min: 2, max: 50 }
-      ]
-    }
-  );
+  const [error, setError] = useState(null);
+  
+  const stripe = useStripe();
+  const elements = useElements();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!stripe || !elements) return;
 
     try {
       setProcessing(true);
+      setError(null);
 
       // Create payment intent
-      const paymentIntent = await createPaymentIntent(total * 100); // Convert to cents
-      if (!paymentIntent) return;
+      const { clientSecret } = await createPaymentIntent(getTotal() * 100); // Convert to cents
+      if (!clientSecret) return;
 
-      // Simulate card processing
-      const paymentResult = await confirmPayment(paymentIntent.id);
-      
-      if (paymentResult) {
-        clearCart();
-        onSuccess(paymentResult);
+      // Confirm the payment with Stripe
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: elements.getElement(CardElement),
+          },
+        }
+      );
+
+      if (stripeError) {
+        setError(stripeError.message);
+        return;
       }
+
+      if (paymentIntent.status === 'succeeded') {
+        clearCart();
+        onSuccess(paymentIntent);
+      }
+    } catch (error) {
+      setError('An error occurred while processing your payment. Please try again.');
     } finally {
       setProcessing(false);
     }
   };
 
-  const formatCardNumber = (value) => {
-    return value.replace(/\s/g, '').replace(/(\d{4})/g, '$1 ').trim();
-  };
-
-  const formatExpiryDate = (value) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}`;
-    }
-    return cleaned;
+  const cardElementOptions = {
+    style: {
+      base: {
+        fontSize: '16px',
+        color: '#424770',
+        '::placeholder': {
+          color: '#aab7c4',
+        },
+      },
+      invalid: {
+        color: '#9e2146',
+      },
+    },
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-gray-50 p-4 rounded-lg mb-6">
         <div className="text-sm text-gray-600 mb-2">Order Total</div>
-        <div className="text-2xl font-bold text-gray-900">${total.toFixed(2)}</div>
+        <div className="text-2xl font-bold text-gray-900">${getTotal().toFixed(2)}</div>
       </div>
 
-      <Input
-        label="Card Number"
-        name="cardNumber"
-        value={formatCardNumber(values.cardNumber)}
-        onChange={(e) => {
-          const value = e.target.value.replace(/\s/g, '');
-          if (value.length <= 16) {
-            handleChange({ target: { name: 'cardNumber', value } });
-          }
-        }}
-        onBlur={handleBlur}
-        error={errors.cardNumber}
-        placeholder="1234 5678 9012 3456"
-        maxLength={19}
-        required
-      />
-
-      <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="Expiry Date"
-          name="expiryDate"
-          value={values.expiryDate}
-          onChange={(e) => {
-            const formatted = formatExpiryDate(e.target.value);
-            if (formatted.length <= 5) {
-              handleChange({ target: { name: 'expiryDate', value: formatted } });
-            }
-          }}
-          onBlur={handleBlur}
-          error={errors.expiryDate}
-          placeholder="MM/YY"
-          maxLength={5}
-          required
-        />
-
-        <Input
-          label="CVV"
-          name="cvv"
-          value={values.cvv}
-          onChange={(e) => {
-            if (e.target.value.length <= 4) {
-              handleChange(e);
-            }
-          }}
-          onBlur={handleBlur}
-          error={errors.cvv}
-          placeholder="123"
-          maxLength={4}
-          type="password"
-          required
-        />
+      <div className="bg-white p-4 rounded border">
+        <CardElement options={cardElementOptions} />
       </div>
 
-      <Input
-        label="Cardholder Name"
-        name="name"
-        value={values.name}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        error={errors.name}
-        placeholder="John Doe"
-        required
-      />
+      {error && (
+        <div className="text-red-600 text-sm">
+          {error}
+        </div>
+      )}
 
       <Button
         type="submit"
         className="w-full"
-        loading={loading || processing}
-        disabled={loading || processing}
+        loading={processing || contextLoading}
+        disabled={!stripe || processing || contextLoading}
       >
-        {processing ? 'Processing...' : `Pay $${total.toFixed(2)}`}
+        {processing ? 'Processing...' : `Pay $${getTotal().toFixed(2)}`}
       </Button>
 
       <div className="mt-4 text-center text-sm text-gray-500">
