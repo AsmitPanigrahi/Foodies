@@ -74,7 +74,7 @@ const RestaurantSelector = ({ onRestaurantSelect }) => {
         <option value="">Select a restaurant</option>
         {restaurants.map((restaurant) => (
           <option key={restaurant._id} value={restaurant._id}>
-            {restaurant.name} ({restaurant._id})
+            {restaurant.name}
           </option>
         ))}
       </select>
