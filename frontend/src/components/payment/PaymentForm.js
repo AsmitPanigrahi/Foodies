@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { usePayment } from '../../context/PaymentContext';
 import { useCart } from '../../context/CartContext';
+import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import toast from 'react-hot-toast';
 
 const PaymentForm = ({ orderId, amount, onSuccess }) => {
+  const navigate = useNavigate();
   const { createPaymentIntent, loading: contextLoading } = usePayment();
   const { clearCart } = useCart();
   const [processing, setProcessing] = useState(false);
@@ -82,6 +84,8 @@ const PaymentForm = ({ orderId, amount, onSuccess }) => {
         if (onSuccess) {
           onSuccess(paymentIntent);
         }
+        // Redirect to orders page after successful payment
+        navigate('/orders');
       }
     } catch (err) {
       console.error('Payment error:', err);
