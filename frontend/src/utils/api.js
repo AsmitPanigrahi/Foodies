@@ -90,7 +90,8 @@ export const orderAPI = {
   getById: (id) => api.get(`/orders/${id}`),
   updateStatus: (id, status) => api.patch(`/orders/${id}`, { status }),
   cancel: (id) => api.post(`/orders/${id}/cancel`),
-  getRestaurantOrders: () => api.get('/orders/restaurant/orders')
+  getRestaurantOrders: () => api.get('/orders/restaurant/orders'),
+  getUserOrders: () => api.get('/orders/user/orders')
 };
 
 export const paymentAPI = {

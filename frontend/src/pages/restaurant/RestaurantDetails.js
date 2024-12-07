@@ -4,6 +4,8 @@ import { toast } from 'react-hot-toast';
 import { getRestaurantById } from '../../api/restaurant.api';
 import customerMenuAPI from '../../api/customer.menu.api';
 import { useCart } from '../../context/CartContext';
+import { orderAPI, paymentAPI } from '../../services/api';
+import PaymentForm from '../../components/payment/PaymentForm';
 
 const RestaurantDetails = () => {
     const { id } = useParams();
@@ -14,12 +16,22 @@ const RestaurantDetails = () => {
     const [menuError, setMenuError] = useState(null);
     const [activeTab, setActiveTab] = useState('menu');
     const [reviews, setReviews] = useState([]);
-    const { cart, addToCart, removeFromCart, updateQuantity } = useCart();
+    const [createdOrder, setCreatedOrder] = useState(null);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const { cart, addToCart, removeFromCart, updateQuantity, setCart } = useCart();
 
     useEffect(() => {
         fetchRestaurantAndMenu();
         fetchReviews();
     }, [id]);
+
+    useEffect(() => {
+        console.log('createdOrder state changed:', createdOrder);
+    }, [createdOrder]);
+
+    useEffect(() => {
+        console.log('showPaymentForm state changed:', showPaymentForm);
+    }, [showPaymentForm]);
 
     const fetchRestaurantAndMenu = async () => {
         try {
@@ -94,10 +106,109 @@ const RestaurantDetails = () => {
             toast.error('Your cart is empty');
             return;
         }
+
+        try {
+            // Format order request data
+            const orderRequestData = {
+                restaurant: restaurant._id,
+                items: cart.map(item => ({
+                    menuItem: item._id,
+                    quantity: item.quantity,
+                    specialInstructions: item.specialInstructions || ''
+                })),
+                deliveryAddress: {
+                    street: '789 Customer St',  // TODO: Get from user input
+                    city: 'New York',
+                    state: 'NY',
+                    zipCode: '10003',
+                    country: 'USA'
+                },
+                paymentMethod: 'card'  // TODO: Get from user input
+            };
+
+            console.log('Creating order with data:', orderRequestData);
+
+            // Create order first
+            const orderResponse = await orderAPI.create(orderRequestData);
+            console.log('Full order response:', orderResponse);
+
+            const createdOrderData = orderResponse?.data?.data?.order;
+            console.log('Extracted order data:', createdOrderData);
+
+            if (!createdOrderData?._id) {
+                console.error('Invalid order response structure:', orderResponse);
+                throw new Error('Invalid order response - missing order ID');
+            }
+
+            // First set the order data
+            console.log('Setting created order with:', createdOrderData);
+            setCreatedOrder(createdOrderData);
+            
+            // Then show the payment form
+            console.log('Showing payment form');
+            setShowPaymentForm(true);
+            
+        } catch (error) {
+            console.error('Error placing order:', error);
+            toast.error(error.response?.data?.message || 'Failed to place order. Please try again.');
+        }
+    };
+
+    const handlePaymentSuccess = async (paymentIntent) => {
+        console.log('Payment success with intent:', paymentIntent);
+        toast.success('Order placed and payment processed successfully!');
+        setCart([]); // Clear cart after successful order
+        setShowPaymentForm(false);
+        setCreatedOrder(null);
+    };
+
+    const handlePaymentCancel = async () => {
+        if (createdOrder?._id) {
+            console.log('Cancelling order:', createdOrder._id);
+            try {
+                await orderAPI.cancel(createdOrder._id);
+                toast.success('Order cancelled');
+            } catch (error) {
+                console.error('Error canceling order:', error);
+                toast.error('Failed to cancel order');
+            }
+        }
+        setShowPaymentForm(false);
+        setCreatedOrder(null);
+    };
+
+    const renderPaymentForm = () => {
+        console.log('Rendering payment form. Order:', createdOrder, 'Show:', showPaymentForm);
         
-        // TODO: Implement order placement logic
-        toast.success('Order placed successfully!');
-        // setCart([]);
+        if (!showPaymentForm || !createdOrder) {
+            console.log('Conditions not met for payment form. showPaymentForm:', showPaymentForm, 'createdOrder:', createdOrder);
+            return null;
+        }
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">Complete Payment</h2>
+                        <button
+                            onClick={handlePaymentCancel}
+                            className="text-gray-500 hover:text-gray-700"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <div className="mb-4">
+                        <p className="text-sm text-gray-600">Order ID: {createdOrder._id}</p>
+                        <p className="text-sm text-gray-600">Total: ${createdOrder.total?.toFixed(2)}</p>
+                    </div>
+                    <PaymentForm
+                        orderId={createdOrder._id}
+                        amount={createdOrder.total}
+                        onSuccess={handlePaymentSuccess}
+                    />
+                </div>
+            </div>
+        );
     };
 
     if (loading) {
@@ -194,7 +305,7 @@ const RestaurantDetails = () => {
                                                             </div>
                                                         </div>
                                                         <button
-                                                            onClick={() => addToCart(item)}
+                                                            onClick={() => addToCart(item, restaurant._id)}
                                                             className={`p-3 rounded-full transition-all transform ${
                                                                 item.isAvailable === false 
                                                                 ? 'bg-gray-300 cursor-not-allowed'
@@ -284,16 +395,24 @@ const RestaurantDetails = () => {
                                     <span className="font-semibold">₹{cart.reduce((total, item) => total + (item.price * item.quantity), 0)}</span>
                                 </div>
                                 <button
-                                    onClick={placeOrder}
+                                    onClick={() => {
+                                        console.log('Place order button clicked');
+                                        console.log('Current cart:', cart);
+                                        placeOrder();
+                                    }}
                                     className="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition-colors"
+                                    disabled={cart.length === 0}
                                 >
-                                    Place Order
+                                    {cart.length === 0 ? 'Cart is Empty' : 'Place Order'}
                                 </button>
                             </div>
                         </>
                     )}
                 </div>
             </div>
+
+            {/* Add payment form modal */}
+            {renderPaymentForm()}
         </div>
     );
 };

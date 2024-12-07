@@ -7,25 +7,50 @@ export const CartProvider = ({ children }) => {
     const savedCart = localStorage.getItem('cart');
     return savedCart ? JSON.parse(savedCart) : [];
   });
+  const [restaurantId, setRestaurantId] = useState(() => {
+    return localStorage.getItem('cartRestaurantId') || null;
+  });
 
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (item) => {
-    setCart(prevCart => {
-      const existingItem = prevCart.find(i => i._id === item._id);
-      if (existingItem) {
-        return prevCart.map(i =>
-          i._id === item._id ? { ...i, quantity: i.quantity + 1 } : i
-        );
+  useEffect(() => {
+    if (restaurantId) {
+      localStorage.setItem('cartRestaurantId', restaurantId);
+    } else {
+      localStorage.removeItem('cartRestaurantId');
+    }
+  }, [restaurantId]);
+
+  const addToCart = (item, currentRestaurantId) => {
+    if (cart.length > 0 && restaurantId !== currentRestaurantId) {
+      if (window.confirm('Adding items from a different restaurant will clear your current cart. Do you want to proceed?')) {
+        setCart([{ ...item, quantity: 1, restaurantId: currentRestaurantId }]);
+        setRestaurantId(currentRestaurantId);
       }
-      return [...prevCart, { ...item, quantity: 1 }];
-    });
+    } else {
+      setCart(prevCart => {
+        const existingItem = prevCart.find(i => i._id === item._id);
+        if (existingItem) {
+          return prevCart.map(i =>
+            i._id === item._id ? { ...i, quantity: i.quantity + 1 } : i
+          );
+        }
+        setRestaurantId(currentRestaurantId);
+        return [...prevCart, { ...item, quantity: 1, restaurantId: currentRestaurantId }];
+      });
+    }
   };
 
   const removeFromCart = (itemId) => {
-    setCart(prevCart => prevCart.filter(item => item._id !== itemId));
+    setCart(prevCart => {
+      const newCart = prevCart.filter(item => item._id !== itemId);
+      if (newCart.length === 0) {
+        setRestaurantId(null);
+      }
+      return newCart;
+    });
   };
 
   const updateQuantity = (itemId, quantity) => {
@@ -39,6 +64,7 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = () => {
     setCart([]);
+    setRestaurantId(null);
   };
 
   const getTotal = () => {
@@ -48,6 +74,7 @@ export const CartProvider = ({ children }) => {
   return (
     <CartContext.Provider value={{
       cart,
+      restaurantId,
       addToCart,
       removeFromCart,
       updateQuantity,

@@ -20,10 +20,7 @@ router.route('/')
 
 router.route('/:id')
     .get(orderController.getOrder)
-    .patch(
-        authController.restrictTo('restaurant-owner', 'admin'),
-        orderController.updateOrderStatus
-    );
+    .patch(orderController.updateOrderStatus);  // Remove role restriction here since we check in controller
 
 router.post('/:id/cancel', orderController.cancelOrder);
 

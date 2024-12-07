@@ -11,19 +11,28 @@ const router = express.Router();
 router.use(authController.protect);
 
 // Create payment intent
-router.post('/create-payment-intent', catchAsync(async (req, res, next) => {
-    const { orderId } = req.body;
+router.post('/create-intent', catchAsync(async (req, res, next) => {
+    const { amount, orderId } = req.body;
 
-    const order = await Order.findById(orderId);
+    if (!amount) {
+        return next(new AppError('Amount is required', 400));
+    }
+
+    if (!orderId) {
+        return next(new AppError('Order ID is required', 400));
+    }
+
+    // Verify order exists and belongs to user
+    const order = await Order.findOne({ _id: orderId, user: req.user._id });
     if (!order) {
-        return next(new AppError('Order not found', 404));
+        return next(new AppError('Order not found or unauthorized', 404));
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(order.total * 100),
+        amount: Math.round(amount), // amount in cents
         currency: 'usd',
         metadata: {
-            orderId: order._id.toString(),
+            orderId: orderId,
             userId: req.user._id.toString()
         }
     });
@@ -53,58 +62,35 @@ router.post('/webhook', express.raw({type: 'application/json'}), async (req, res
     switch (event.type) {
         case 'payment_intent.succeeded':
             const paymentIntent = event.data.object;
-            const order = await Order.findById(paymentIntent.metadata.orderId);
-            if (order) {
-                order.paymentStatus = 'completed';
-                order.paymentDetails = {
-                    transactionId: paymentIntent.id,
-                    amount: paymentIntent.amount / 100,
-                    currency: paymentIntent.currency,
-                    paymentTime: new Date()
-                };
-                await order.save();
+            // Update order status
+            if (paymentIntent.metadata.orderId) {
+                await Order.findByIdAndUpdate(
+                    paymentIntent.metadata.orderId,
+                    { 
+                        paymentStatus: 'paid',
+                        status: 'confirmed'
+                    }
+                );
             }
             break;
-
         case 'payment_intent.payment_failed':
             const failedPayment = event.data.object;
-            const failedOrder = await Order.findById(failedPayment.metadata.orderId);
-            if (failedOrder) {
-                failedOrder.paymentStatus = 'failed';
-                await failedOrder.save();
+            // Update order status
+            if (failedPayment.metadata.orderId) {
+                await Order.findByIdAndUpdate(
+                    failedPayment.metadata.orderId,
+                    { 
+                        paymentStatus: 'failed',
+                        status: 'cancelled'
+                    }
+                );
             }
             break;
+        default:
+            console.log(`Unhandled event type ${event.type}`);
     }
 
-    res.json({ received: true });
+    res.json({received: true});
 });
-
-// Get payment methods for user
-router.get('/payment-methods', catchAsync(async (req, res, next) => {
-    const paymentMethods = await stripe.paymentMethods.list({
-        customer: req.user.stripeCustomerId,
-        type: 'card'
-    });
-
-    res.status(200).json({
-        status: 'success',
-        data: paymentMethods.data
-    });
-}));
-
-// Add new payment method
-router.post('/payment-methods', catchAsync(async (req, res, next) => {
-    const { paymentMethodId } = req.body;
-
-    // Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethodId, {
-        customer: req.user.stripeCustomerId,
-    });
-
-    res.status(200).json({
-        status: 'success',
-        message: 'Payment method added successfully'
-    });
-}));
 
 module.exports = router;

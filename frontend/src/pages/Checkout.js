@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { orderAPI } from '../services/api';
+import { orderAPI, paymentAPI } from '../services/api';
 import PaymentForm from '../components/payment/PaymentForm';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -19,16 +19,27 @@ console.log('Stripe Key:', STRIPE_PUBLISHABLE_KEY);
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { cart, getTotal, clearCart } = useCart();
+  const { cart, getTotal, clearCart, restaurantId } = useCart();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState('address'); // 'address' or 'payment'
+  const [orderId, setOrderId] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState({
     street: '',
     city: '',
     state: '',
     zipCode: '',
-    country: ''
+    country: '',
+    location: {
+      coordinates: [0, 0] // Default coordinates, ideally should be geocoded from address
+    }
   });
+
+  useEffect(() => {
+    if (!restaurantId || cart.length === 0) {
+      toast.error('Your cart is empty');
+      navigate('/restaurants');
+    }
+  }, [restaurantId, cart, navigate]);
 
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
@@ -38,7 +49,7 @@ const Checkout = () => {
     }));
   };
 
-  const handleAddressSubmit = (e) => {
+  const handleAddressSubmit = async (e) => {
     e.preventDefault();
     // Validate address
     if (!deliveryAddress.street || !deliveryAddress.city || 
@@ -46,33 +57,80 @@ const Checkout = () => {
       toast.error('Please fill in all address fields');
       return;
     }
-    setStep('payment');
+
+    try {
+      setLoading(true);
+      
+      // Create order first
+      const orderData = {
+        restaurant: restaurantId,
+        items: cart.map(item => ({
+          menuItem: item._id,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        deliveryAddress: {
+          ...deliveryAddress,
+          location: {
+            type: 'Point',
+            coordinates: [77.5946, 12.9716] // Default Bangalore coordinates for now
+          }
+        },
+        totalAmount: getTotal(),
+        status: 'pending',
+        paymentMethod: 'card' // Required field
+      };
+
+      console.log('Creating order with data:', orderData);
+      const response = await orderAPI.create(orderData);
+      console.log('Order creation response:', response);
+
+      if (!response?.data?.data?.order?._id) {
+        console.error('Invalid order response structure:', response);
+        throw new Error('Failed to create order - invalid response');
+      }
+
+      const createdOrder = response.data.data.order;
+      setOrderId(createdOrder._id);
+      setStep('payment');
+    } catch (error) {
+      console.error('Error creating order:', error);
+      toast.error(error.response?.data?.message || 'Failed to create order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePaymentSuccess = async (paymentResult) => {
     try {
       setLoading(true);
       
-      // Create order
-      const orderData = {
-        items: cart.map(item => ({
-          menuItem: item._id,
-          quantity: item.quantity,
-          price: item.price
-        })),
-        deliveryAddress,
-        totalAmount: getTotal(),
+      // Update order with payment info and status
+      await orderAPI.updateStatus(orderId, {
+        status: 'confirmed',
         paymentId: paymentResult.id
-      };
+      });
 
-      await orderAPI.create(orderData);
       clearCart();
       toast.success('Order placed successfully!');
       navigate('/orders');
     } catch (error) {
-      toast.error('Failed to create order');
+      console.error('Error confirming payment:', error);
+      toast.error('Failed to confirm payment. Please contact support.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePaymentCancel = async () => {
+    try {
+      // Cancel the order using the dedicated cancel endpoint
+      await orderAPI.cancel(orderId);
+      setStep('address');
+      setOrderId(null);
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      toast.error('Failed to cancel order');
     }
   };
 
@@ -165,7 +223,12 @@ const Checkout = () => {
         ) : (
           <Elements stripe={stripePromise}>
             <PaymentProvider>
-              <PaymentForm onSuccess={handlePaymentSuccess} />
+              <PaymentForm 
+                orderId={orderId} 
+                amount={getTotal()} 
+                onSuccess={handlePaymentSuccess}
+                onCancel={handlePaymentCancel}
+              />
             </PaymentProvider>
           </Elements>
         )}

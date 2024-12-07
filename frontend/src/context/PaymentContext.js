@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { paymentAPI } from '../utils/api';
+import { paymentAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const PaymentContext = createContext();
@@ -8,15 +8,20 @@ export const PaymentProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [paymentIntent, setPaymentIntent] = useState(null);
 
-  const createPaymentIntent = async (amount) => {
+  const createPaymentIntent = async ({ amount, orderId }) => {
     try {
       setLoading(true);
-      const response = await paymentAPI.createPaymentIntent({ amount });
-      setPaymentIntent(response.data);
-      return response.data;
+      const response = await paymentAPI.createPaymentIntent({ amount, orderId });
+      
+      if (response.data?.status === 'success' && response.data?.clientSecret) {
+        setPaymentIntent(response.data);
+        return response.data;
+      } else {
+        throw new Error('Invalid payment intent response');
+      }
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error('Failed to initialize payment');
+      toast.error(error.response?.data?.message || 'Failed to initialize payment');
       return null;
     } finally {
       setLoading(false);
@@ -27,11 +32,16 @@ export const PaymentProvider = ({ children }) => {
     try {
       setLoading(true);
       const response = await paymentAPI.confirmPayment(paymentIntentId);
-      toast.success('Payment successful!');
-      return response.data;
+      
+      if (response.data?.status === 'success') {
+        toast.success('Payment successful!');
+        return response.data;
+      } else {
+        throw new Error('Payment confirmation failed');
+      }
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error('Payment failed. Please try again.');
+      toast.error(error.response?.data?.message || 'Payment failed. Please try again.');
       return null;
     } finally {
       setLoading(false);
