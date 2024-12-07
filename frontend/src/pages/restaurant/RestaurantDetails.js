@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { getRestaurantById } from '../../api/restaurant.api';
 import customerMenuAPI from '../../api/customer.menu.api';
@@ -9,6 +9,7 @@ import PaymentForm from '../../components/payment/PaymentForm';
 
 const RestaurantDetails = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [restaurant, setRestaurant] = useState(null);
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -380,10 +381,9 @@ const RestaurantDetails = () => {
                                             </button>
                                             <button
                                                 onClick={() => removeFromCart(item._id)}
-                                                className="text-red-500 hover:text-red-600 ml-2"
-                                                title="Remove from cart"
+                                                className="text-red-500 hover:text-red-600"
                                             >
-                                                ✕
+                                                ×
                                             </button>
                                         </div>
                                     </div>
@@ -392,18 +392,13 @@ const RestaurantDetails = () => {
                             <div className="border-t pt-4">
                                 <div className="flex justify-between mb-4">
                                     <span className="font-semibold">Total:</span>
-                                    <span className="font-semibold">₹{cart.reduce((total, item) => total + (item.price * item.quantity), 0)}</span>
+                                    <span className="font-semibold">₹{cart.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2)}</span>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        console.log('Place order button clicked');
-                                        console.log('Current cart:', cart);
-                                        placeOrder();
-                                    }}
-                                    className="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition-colors"
-                                    disabled={cart.length === 0}
+                                    onClick={() => navigate('/cart')}
+                                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors"
                                 >
-                                    {cart.length === 0 ? 'Cart is Empty' : 'Place Order'}
+                                    Go to Cart
                                 </button>
                             </div>
                         </>
