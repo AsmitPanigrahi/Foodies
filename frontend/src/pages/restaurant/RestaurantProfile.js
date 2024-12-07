@@ -465,16 +465,6 @@ const RestaurantProfile = () => {
 
     return (
       <div className="space-y-6">
-        {/* <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">{restaurant?.name}</h2>
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          >
-            Edit Profile
-          </button>
-        </div> */}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-lg font-semibold mb-2">Basic Information</h3>
