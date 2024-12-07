@@ -14,6 +14,7 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [restaurantId, setRestaurantId] = useState(null);
+  const [restaurantDetails, setRestaurantDetails] = useState(null);
 
   useEffect(() => {
     fetchRestaurantId();
@@ -30,6 +31,7 @@ const Dashboard = () => {
       const response = await getRestaurantDashboard();
       if (response?.status === 'success') {
         setRestaurantId(response.data.restaurant._id);
+        setRestaurantDetails(response.data.restaurant);
       } else {
         toast.error('Failed to fetch restaurant information');
       }
@@ -109,12 +111,38 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Orders */}
+      {/* Restaurant Details */}
       <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Orders</h2>
-        <div className="text-gray-500 text-center py-8">
-          No recent orders to display
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Restaurant Details</h2>
+        {restaurantDetails ? (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-medium text-gray-700">Restaurant Name</h3>
+              <p className="text-gray-600">{restaurantDetails.name}</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-700">Address</h3>
+              <div className="text-gray-600">
+                <p>{restaurantDetails.address.street}</p>
+                <p>{restaurantDetails.address.city}, {restaurantDetails.address.state}</p>
+                <p>{restaurantDetails.address.zipCode}</p>
+                <p>{restaurantDetails.address.country}</p>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-700">Contact</h3>
+              <p className="text-gray-600">{restaurantDetails.phone}</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-700">Email</h3>
+              <p className="text-gray-600">{restaurantDetails.email}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center py-8">
+            No restaurant details available
+          </div>
+        )}
       </div>
     </div>
   );
