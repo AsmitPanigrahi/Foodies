@@ -117,13 +117,11 @@ mongoose.connect(process.env.MONGODB_URI, {
 // Export the app for Vercel
 module.exports = app;
 
-// Only listen to port if not in Vercel environment
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
-    });
-}
+// Server Configuration
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
 
 // Handle socket connections
 io.on('connection', (socket) => {
