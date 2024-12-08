@@ -76,3 +76,6 @@ REACT_APP_STRIPE_PUBLIC_KEY=your_stripe_public_key
 - Database: MongoDB
 - Payment Processing: Stripe
 - Real-time Updates: Socket.io
+
+
+updated
