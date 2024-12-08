@@ -78,4 +78,4 @@ REACT_APP_STRIPE_PUBLIC_KEY=your_stripe_public_key
 - Real-time Updates: Socket.io
 
 
-updated new 
+updated new version
