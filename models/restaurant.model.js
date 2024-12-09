@@ -73,7 +73,7 @@ const restaurantSchema = new mongoose.Schema({
         }
     },
     openingHours: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed, // Allow any type of data
         required: [true, 'A restaurant must have opening hours']
     },
     preparationTime: {
@@ -90,6 +90,14 @@ const restaurantSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'A restaurant must specify its minimum order amount'],
         min: [0, 'Minimum order cannot be negative']
+    },
+    features: {
+        type: [{
+            hasDelivery: Boolean,
+            hasTableBooking: Boolean,
+            hasTakeaway: Boolean
+        }],
+        default: []
     },
     isActive: {
         type: Boolean,

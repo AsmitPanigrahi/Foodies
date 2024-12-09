@@ -13,6 +13,11 @@ router.get('/search', restaurantController.searchRestaurants);
 router.use(authController.protect);
 
 // Restaurant owner routes
+router.post('/', 
+    authController.restrictTo('restaurant-owner'),
+    restaurantController.createRestaurant
+);
+
 router.get('/dashboard', 
     authController.restrictTo('restaurant-owner', 'admin'),
     restaurantController.getRestaurantDashboard
