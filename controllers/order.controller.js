@@ -133,13 +133,6 @@ exports.getUserOrders = catchAsync(async (req, res, next) => {
 
 exports.getRestaurantOrders = catchAsync(async (req, res, next) => {
     try {
-        // Log user information
-        console.log('Debug - User Info:', {
-            id: req.user?._id,
-            role: req.user?.role,
-            exists: !!req.user
-        });
-
         // Verify user exists and has required role
         if (!req.user) {
             return next(new AppError('User not found', 401));
@@ -151,11 +144,6 @@ exports.getRestaurantOrders = catchAsync(async (req, res, next) => {
 
         // Find the restaurant
         const restaurant = await Restaurant.findOne({ owner: req.user._id });
-        console.log('Debug - Restaurant Query:', {
-            ownerId: req.user._id,
-            found: !!restaurant,
-            restaurantId: restaurant?._id
-        });
         
         if (!restaurant) {
             return next(new AppError('No restaurant found for this user', 404));
@@ -177,12 +165,6 @@ exports.getRestaurantOrders = catchAsync(async (req, res, next) => {
                 select: 'name address contactNumber'
             });
 
-        console.log('Debug - Orders Query:', {
-            restaurantId: restaurant._id,
-            orderCount: orders?.length,
-            orderIds: orders?.map(o => o._id)
-        });
-
         res.status(200).json({
             status: 'success',
             results: orders.length,
@@ -202,17 +184,6 @@ exports.getRestaurantOrders = catchAsync(async (req, res, next) => {
 
 exports.updateOrderStatus = catchAsync(async (req, res, next) => {
     try {
-        // Log incoming request
-        console.log('Received status update request:', {
-            orderId: req.params.id,
-            status: req.body.status,
-            user: {
-                id: req.user._id,
-                role: req.user.role
-            },
-            body: req.body
-        });
-
         // Find order and populate restaurant details, but not user
         const order = await Order.findById(req.params.id)
             .select('user status paymentDetails restaurant actualDeliveryTime')
@@ -228,28 +199,10 @@ exports.updateOrderStatus = catchAsync(async (req, res, next) => {
             return next(new AppError('Order not found', 404));
         }
 
-        // Log raw order data for debugging
-        console.log('Raw order data:', {
-            orderId: order._id,
-            userId: order.user,
-            restaurantId: order.restaurant?._id,
-            restaurantOwnerId: order.restaurant?.owner?._id,
-            currentUserId: req.user._id
-        });
-
         // Check if this is the user's order (comparing ObjectIds)
         const isCustomer = order.user.equals(req.user._id);
         const isAdmin = req.user.role === 'admin';
         const isOwner = order.restaurant?.owner?._id && req.user._id.equals(order.restaurant.owner._id);
-
-        console.log('Permission check:', {
-            isCustomer,
-            isAdmin,
-            isOwner,
-            orderUserId: order.user,
-            currentUserId: req.user._id,
-            restaurantOwnerId: order.restaurant?.owner?._id
-        });
 
         if (!isAdmin && !isOwner && !isCustomer) {
             return next(new AppError('You do not have permission to update this order', 403));
@@ -280,11 +233,6 @@ exports.updateOrderStatus = catchAsync(async (req, res, next) => {
         }
 
         const savedOrder = await order.save();
-        console.log('Order updated successfully:', {
-            orderId: savedOrder._id,
-            newStatus: savedOrder.status,
-            paymentDetails: savedOrder.paymentDetails
-        });
 
         // Emit socket event for status update
         if (req.io) {

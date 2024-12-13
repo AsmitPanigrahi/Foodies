@@ -1,7 +1,5 @@
 const mongoose = require('mongoose');
 const validator = require('validator');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -24,7 +22,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['user', 'restaurant-owner', 'admin'],
+        enum: ['user', 'restaurant-owner'],
         default: 'user'
     },
     address: {
@@ -53,14 +51,6 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: 'default.jpg'
     },
-    active: {
-        type: Boolean,
-        default: true,
-        select: false
-    },
-    passwordResetToken: String,
-    passwordResetExpires: Date,
-    passwordChangedAt: Date
 }, {
     timestamps: true
 });
@@ -68,34 +58,6 @@ const userSchema = new mongoose.Schema({
 // Index for geospatial queries
 userSchema.index({ location: '2dsphere' });
 
-// Only find active users
-userSchema.pre(/^find/, function(next) {
-    this.find({ active: { $ne: false } });
-    next();
-});
-
-// Instance methods
-userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
-    if (this.passwordChangedAt) {
-        const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
-        return JWTTimestamp < changedTimestamp;
-    }
-    return false;
-};
-
-userSchema.methods.createPasswordResetToken = function() {
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    
-    this.passwordResetToken = crypto
-        .createHash('sha256')
-        .update(resetToken)
-        .digest('hex');
-    
-    this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-    
-    return resetToken;
-};
 
 const User = mongoose.model('User', userSchema);
-
 module.exports = User;

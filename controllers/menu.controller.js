@@ -3,45 +3,41 @@ const Restaurant = require('../models/restaurant.model');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
-exports.createMenuItem = catchAsync(async (req, res, next) => {
-    // Get restaurantId from route params instead of request body
-    const restaurantId = req.params.restaurantId;
-    const restaurant = await Restaurant.findById(restaurantId).populate('owner');
+exports.createMenuItem = async (req, res, next) => {
+    try {
+        // Get restaurantId from route params instead of request body
+        const restaurantId = req.params.restaurantId;
+        const restaurant = await Restaurant.findById(restaurantId).populate('owner');
 
-    if (!restaurant) {
-        return next(new AppError('No restaurant found with that ID', 404));
+        if (!restaurant) {
+            throw new AppError('No restaurant found with that ID', 404);
+        }
+
+        if (restaurant.owner._id.toString() !== req.user._id.toString()) {
+            throw new AppError('You can only add items to your own restaurant', 403);
+        }
+
+        // Add restaurant ID to the menu item data
+        const menuItemData = {
+            ...req.body,
+            restaurant: restaurantId
+        };
+
+        // Validate the menu item data
+        const menuItem = new MenuItem(menuItemData);
+        await menuItem.validate();
+
+        // Create the menu item
+        await menuItem.save();
+
+        res.status(201).json({
+            status: 'success',
+            data: { menuItem }
+        });
+    } catch (error) {
+        console.error('Error in creating menu item:', error);
     }
-
-    // Check if user is the restaurant owner
-    console.log('Debug Info:');
-    console.log('Logged-in user ID:', req.user._id);
-    console.log('Restaurant owner ID:', restaurant.owner._id);
-    console.log('Types:', {
-        userIdType: typeof req.user._id,
-        ownerIdType: typeof restaurant.owner._id
-    });
-    console.log('String values:', {
-        userIdString: req.user._id.toString(),
-        ownerIdString: restaurant.owner._id.toString()
-    });
-
-    if (restaurant.owner._id.toString() !== req.user._id.toString()) {
-        return next(new AppError('You can only add items to your own restaurant', 403));
-    }
-
-    // Add restaurant ID to the menu item data
-    const menuItemData = {
-        ...req.body,
-        restaurant: restaurantId
-    };
-
-    const menuItem = await MenuItem.create(menuItemData);
-
-    res.status(201).json({
-        status: 'success',
-        data: { menuItem }
-    });
-});
+};
 
 exports.getAllMenuItems = catchAsync(async (req, res, next) => {
     const filter = {};
